@@ -11,37 +11,60 @@ int main(int argc, char **argv) {
 
     auto conserved_density = std::make_unique<ConservedDensity>();
     auto conserved_energy = std::make_unique<ConservedEnergy>();
-    auto conserved_momenta = std::make_unique<std::vector<std::unique_ptr<ConservedMomentum>>>();
+    std::vector<std::unique_ptr<ConservedMomentum>> conserved_momenta;
     for (uint8_t d = 0; d < DIMENSION; d++) {
-        conserved_momenta->push_back(std::make_unique<ConservedMomentum>());
+        conserved_momenta.push_back(std::make_unique<ConservedMomentum>());
     }
 
     real dt = 0.5;
     real current_time = 0.;
+
+    const uint8_t number_of_neighbors = (uint8_t)(2 * DIMENSION);
+    std::vector<std::shared_ptr<Cell>> neighbor_cells(number_of_neighbors);
+    std::vector<std::vector<box_int>> neighbor_coordinates(number_of_neighbors, std::vector<box_int>(DIMENSION));
+
+    std::cout << std::endl;
     while (true) {
-        for (uint8_t d = 0; d < DIMENSION; d++) {
-            for (uint64_t i = 0; i < grid->get_N_cells_Nd(); i++) {
-                std::shared_ptr<Cell> current_cell = grid->get_cell(i);
-                real initial_density = current_cell->get_density();
-                real initial_pressure = current_cell->get_pressure();
-                std::shared_ptr<std::vector<real>> initial_velocity = current_cell->get_velocity();
+        for (uint64_t i = 0; i < grid->get_N_cells_Nd(); i++) {
+            auto current_cell = grid->get_cell(i);
 
-                auto initial_state_vector = std::make_shared<std::vector<real>>();
-                initial_state_vector->push_back(initial_density);
-                initial_state_vector->insert(
-                    initial_state_vector->end(), 
-                    initial_velocity->begin(), 
-                    initial_velocity->end()
+            std::cout << "Cell #" << i << "\n";
+            std::cout << "(x,y) = (" << current_cell->get_coordinates(0) << ", " << current_cell->get_coordinates(1) << ")\n";
+
+            for (uint8_t n = 0; n < number_of_neighbors; n++) {
+                neighbor_coordinates[n] = *(current_cell->get_coordinates());
+            }
+
+            // d = 0 refers to the nearest cells in index space, d = 1 is next closest, etc.
+            for (uint8_t d = 0; d < DIMENSION; d++) {
+                neighbor_coordinates[2 * d][d] = (current_cell->get_coordinates(d) + 1) % N_CELLS_1D;
+                neighbor_coordinates[2 * d + 1][d] = (current_cell->get_coordinates(d) - 1 + N_CELLS_1D) % N_CELLS_1D;
+            }
+
+            for (uint8_t d = 0; d < DIMENSION; d++) {
+                neighbor_cells[2 * d] = grid->get_cell(
+                    grid->coordinates_to_index(neighbor_coordinates[2 * d])
                 );
-                initial_state_vector->push_back(initial_pressure);
+                neighbor_cells[2 * d + 1] = grid->get_cell(
+                    grid->coordinates_to_index(neighbor_coordinates[2 * d + 1])
+                );
+            }
 
-                conserved_density->set_initial_state(initial_state_vector);
-                (*conserved_momenta)[d]->set_initial_state(initial_state_vector);
+            
+            // Check to make sure the neighbors make sense
+            std::cout << "\nCell #" << i << " has " << (int)number_of_neighbors << " neighbors: \n";
+            for (uint8_t n = 0; n < number_of_neighbors; n++) {
+                std::cout << "neighbor n = " << (int)n << ", i = " << (int)grid->coordinates_to_index(neighbor_coordinates[n]) << "\n";
+                std::cout << "(x, y) = (" << neighbor_coordinates[n][0] << ", " << neighbor_coordinates[n][1] << ")\n";
+            }
+            std::cout << "\n";
 
-                conserved_density->update(&dt);
-                (*conserved_momenta)[d]->update(&dt);
-                conserved_energy->update(&dt);
+            conserved_density->set_initial_state(current_cell);
+            conserved_energy->update(&neighbor_cells, &dt);
 
+            for (uint8_t d = 0; d < DIMENSION; d++) {
+                conserved_momenta[d]->set_initial_state(current_cell);
+                conserved_momenta[d]->update(&neighbor_cells, &dt);
             }
         }
 
