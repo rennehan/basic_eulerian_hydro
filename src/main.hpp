@@ -20,7 +20,7 @@ typedef int64_t box_int;
 #endif
 
 #ifndef N_CELLS_1D
-#define N_CELLS_1D 5
+#define N_CELLS_1D 3
 #endif
 
 #endif /* MAIN_HPP */

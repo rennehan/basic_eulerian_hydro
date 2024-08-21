@@ -66,9 +66,13 @@ public:
         std::cout << std::scientific;
         for (auto &cell : cells) {
             std::cout << "\n";
+            std::cout <<"(x_0, x_1, ..., x_N) = (";
             for (auto coordinate : *cell->get_coordinates()) {
                 std::cout << (real)coordinate / (real)N_CELLS_1D << ",";
             }
+            std::cout << ")\n";
+
+            std::cout << "density = " << cell->get_density() << "\n\n";
         }
     }
 
